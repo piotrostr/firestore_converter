@@ -3,10 +3,11 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"log"
 	"os"
 
-	firebase "firebase.google.com/go"
+	"cloud.google.com/go/firestore"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 )
@@ -18,18 +19,72 @@ func getenv(key, fallback string) string {
 	return fallback
 }
 
+var (
+	dump     = flag.Bool("dump", false, "Dump Firestore into dump.json")
+	populate = flag.Bool("populate", false, "Populate Firestore from dump.json")
+)
+
 func main() {
+	flag.Parse()
+
 	ctx := context.Background()
+
 	opt := option.WithCredentialsFile(getenv("FIREBASE_SERVICE_ACCOUNT", ""))
-	app, err := firebase.NewApp(context.Background(), nil, opt)
+	client, err := firestore.NewClientWithDatabase(
+		ctx,
+		getenv("FIREBASE_PROJECT_ID", ""),
+		getenv("FIREBASE_DATABASE_ID", "(default)"),
+		opt,
+	)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	client, err := app.Firestore(ctx)
+	if *dump {
+		dumpFirestoreIntoJSON(ctx, client)
+	}
+
+	if *populate {
+		populateFirestoreFromJSON(ctx, client)
+	}
+}
+
+func populateFirestoreFromJSON(ctx context.Context, client *firestore.Client) {
+	defer client.Close()
+
+	f, err := os.Open("dump.json")
 	if err != nil {
 		log.Fatalln(err)
 	}
+	defer f.Close()
+
+	var data map[string]any
+	err = json.NewDecoder(f).Decode(&data)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	// create a staging database in Firestore, don't use default
+
+	for colName, colData := range data {
+		colRef := client.Collection(colName)
+		for docName, docData := range colData.(map[string]any) {
+			_, err := colRef.Doc(docName).Set(ctx, docData)
+			if err != nil {
+				log.Fatalln(err)
+			}
+		}
+
+		log.Printf("Collection %s populated", colName)
+	}
+
+	log.Println("Firestore populated")
+}
+
+func dumpFirestoreIntoJSON(ctx context.Context, client *firestore.Client) {
+	defer client.Close()
+
+	log.Println("Dumping Firestore into dump.json")
 
 	cols := client.Collections(ctx)
 	allCols, err := cols.GetAll()
@@ -66,9 +121,9 @@ func main() {
 		res[col.ID] = colRes
 	}
 
-	defer client.Close()
-
 	dumpJSON(res)
+
+	log.Println("Firestore dumped")
 }
 
 func dumpJSON(data any) {
