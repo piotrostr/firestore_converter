@@ -11,9 +11,16 @@ import (
 	"google.golang.org/api/option"
 )
 
+func getenv(key, fallback string) string {
+	if value, ok := os.LookupEnv(key); ok {
+		return value
+	}
+	return fallback
+}
+
 func main() {
 	ctx := context.Background()
-	opt := option.WithCredentialsFile("/Users/piotrostr/Downloads/production-schedule-3033a-fa40b1f07c55.json")
+	opt := option.WithCredentialsFile(getenv("FIREBASE_SERVICE_ACCOUNT", ""))
 	app, err := firebase.NewApp(context.Background(), nil, opt)
 	if err != nil {
 		log.Fatalln(err)
