@@ -20,8 +20,8 @@ func getenv(key, fallback string) string {
 }
 
 var (
-	dump     = flag.Bool("dump", false, "Dump Firestore into dump.json")
-	populate = flag.Bool("populate", false, "Populate Firestore from dump.json")
+	dump = flag.Bool("dump", false, "Dump Firestore into dump.json")
+	load = flag.Bool("load", false, "Populate Firestore from dump.json")
 )
 
 func main() {
@@ -44,12 +44,12 @@ func main() {
 		dumpFirestoreIntoJSON(ctx, client)
 	}
 
-	if *populate {
-		populateFirestoreFromJSON(ctx, client)
+	if *load {
+		loadJSONIntoFirestore(ctx, client)
 	}
 }
 
-func populateFirestoreFromJSON(ctx context.Context, client *firestore.Client) {
+func loadJSONIntoFirestore(ctx context.Context, client *firestore.Client) {
 	defer client.Close()
 
 	f, err := os.Open("dump.json")
